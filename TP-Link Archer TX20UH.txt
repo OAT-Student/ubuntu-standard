@@ -1,0 +1,76 @@
+TP-Link Archer TX20UH บน Ubuntu Server (Raspberry Pi 5)
+
+วิธีการติดตั้ง
+sudo apt update
+sudo apt install build-essential dkms git linux-headers-$(uname -r)
+
+git clone https://github.com/lwfinger/rtl8852au.git
+cd rtl8852au
+make
+sudo make install
+
+sudo modprobe 8852au
+
+# ตรวจสอบว่าโหลดสำเร็จมั้ย
+lsmod | grep 8852au 
+
+# ควรเห็นบรรทัดเช่น:
+8852au  13848576  0 
+
+# ตรวจสอบอุปกรณ์ USB
+lsusb
+
+# ผลลัพธ์ที่เจอ:
+Bus 002 Device 003: ID 2357:0141 TP-Link 802.11ac WLAN Adapter
+
+sudo dmesg | grep 8852
+# ผลลัพธ์ที่ได้:
+8852au: loading out-of-tree module taints kernel.
+usbcore: registered new interface driver rtl8852au
+rtl8852au 4-1:1.0 wlx98038e50024e: renamed from wlan1
+
+ip link show wlx98038e50024e
+# ครั้งแรกเจอ state DOWN → interface ปิดอยู่
+วิธีแก้  สั่งเปิด:
+
+sudo ip link set wlx98038e50024e up
+
+# เครื่องมือ Wi-Fi เพิ่มเติม
+sudo apt install wireless-tools
+sudo iwlist wlx98038e50024e scan | grep ESSID
+
+#สร้างflie config Wifi 
+cd /etc/netplan
+sudo nano 01-wifi.yaml
+
+#แล้วแก้ชื่อ wifi password
+
+network:
+  version: 2
+  renderer: networkd
+  wifis:
+    wlx98038e50024e:        # TP-Link USB Wi-Fi
+      dhcp4: true
+      dhcp4-overrides:
+        route-metric: 100   # priority สูง (เลือกใช้ก่อน)
+      access-points:
+        "MyWiFi":
+          password: "MyPassword"
+
+    wlan0:                  # Onboard Wi-Fi ของ Pi 5
+      dhcp4: true
+      dhcp4-overrides:
+        route-metric: 600   # priority ต่ำ (fallback)
+      access-points:
+        "MyWiFi":
+          password: "MyPassword"
+
+# apply config
+sudo netplan apply
+
+# ทดสอบว่าใช้เน็ตอะไรอยู่
+ip route get 8.8.8.8
+
+เสียบ TP-Link → ควรเห็น dev wlx98038e50024e
+ถอด TP-Link → จะสลับเป็น dev wlan0
+
